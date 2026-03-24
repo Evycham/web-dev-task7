@@ -1,6 +1,8 @@
 'use strict';
 
-class Task {
+import crypto from 'crypto';
+
+export default class Task {
     constructor(_title, _description, _date) {
         this.title = _title;
         this.description = _description;
@@ -10,12 +12,10 @@ class Task {
 
     toJSON() {
         return {
-            "title": this.title,
-            "description": this.description,
-            "date": this.date,
-            "_id": this.id
+            title: this.title,
+            description: this.description,
+            date: this.date,
+            id: this.id
         };
     }
 }
-
-module.exports = Task;

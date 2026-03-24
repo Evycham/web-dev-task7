@@ -1,6 +1,5 @@
 "use strict";
 
-
 const btnOpen = document.getElementById("btnOpen");
 const btnClose = document.getElementById("btnClose");
 
@@ -15,74 +14,41 @@ const tasksList = document.getElementById("tasks--list");
 const errorMsg = document.getElementById("error");
 const template = document.getElementById("tasks--template");
 
-
 let tasksArray = [];
-
 let dateToday;
 
-// Dialog-open
-btnOpen.addEventListener("click", function() {
+// Dialog open
+btnOpen.addEventListener("click", function () {
     clearInput();
     dialog.showModal();
 });
-// Dialog-close
-btnClose.addEventListener("click", function() {
+
+// Dialog close
+btnClose.addEventListener("click", function () {
     dialog.close();
     clearInput();
 });
 
-form.addEventListener("submit", function(e){
+form.addEventListener("submit", async function (e) {
     e.preventDefault();
-    createTask();
-    showTasks();
+    await createTask();
 });
 
 tasksList.addEventListener("click", removeTask);
 
-window.addEventListener("load", function (){
-    loadTasks();
+window.addEventListener("load", async function () {
+    await loadTasksFromServer();
     showTasks();
 });
 
-/**
- * Main function for creating Tasks:
- *  gathering information from inputs fields and pre-check
- **/
-function createTask() {
-    dateToday = new Date();
-    dateToday.setHours(0, 0, 0, 0);
-
-    const name = titelInput.value;
-    const description = descriptionInput.value;
-    const date = new Date(dateInput.value);
-
-    if(dateToday > date){
-        showError();
-        return;
-    }
-
-    let task = new Task(name, description, date);
-    tasksArray.push(task);
-
-    saveTasks();
-    clearInput();
-    dialog.close();
-}
-
-/**
- * class for a Task
- **/
-class Task{
-    constructor(_title, _description, _date) {
+class Task {
+    constructor(_title, _description, _date, _id) {
         this.title = _title;
         this.description = _description;
-        this.date = _date;
-        this.id = crypto.randomUUID();
+        this.date = new Date(_date);
+        this.id = _id;
     }
 
-    /**
-     * method for adding the task to the HTML "part"
-     **/
     addTask() {
         const clone = template.content.cloneNode(true);
         const title = clone.querySelector(".task--title");
@@ -95,7 +61,7 @@ class Task{
         description.textContent = this.description;
         date.textContent = this.dateToString();
 
-        if(this.date - dateToday < 3 * 24 * 60 * 60 * 1000){
+        if (this.date - dateToday < 3 * 24 * 60 * 60 * 1000) {
             fullEl.classList.add("isImportant");
         }
 
@@ -103,87 +69,122 @@ class Task{
     }
 
     dateToString() {
-        let year = this.date.getFullYear();
-        let month = ("" + this.date.getMonth() + 1).padStart(2, "0");
-        let day = ("" + this.date.getDate()).padStart(2, "0");
+        const year = this.date.getFullYear();
+        const month = String(this.date.getMonth() + 1).padStart(2, "0");
+        const day = String(this.date.getDate()).padStart(2, "0");
 
-        return day + "-" + month + "-" + year;
+        return `${day}-${month}-${year}`;
     }
 }
 
-/**
-* two methods for the date-error
-**/
-function showError(){
+async function createTask() {
+    dateToday = new Date();
+    dateToday.setHours(0, 0, 0, 0);
+
+    const title = titelInput.value.trim();
+    const description = descriptionInput.value.trim();
+    const date = dateInput.value;
+
+    if (new Date(date) < dateToday) {
+        showError();
+        return;
+    }
+
+    try {
+        const response = await fetch("/todos", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ title, description, date }),
+        });
+
+        if (!response.ok) {
+            throw new Error(response.statusText);
+        }
+
+        const createdTask = await response.json();
+
+        const task = new Task(
+            createdTask.title,
+            createdTask.description,
+            createdTask.date,
+            createdTask.id
+        );
+
+        tasksArray.push(task);
+        clearInput();
+        dialog.close();
+        showTasks();
+    } catch (err) {
+        console.log(err);
+    }
+}
+
+async function loadTasksFromServer() {
+    try {
+        const response = await fetch("/todos");
+
+        if (!response.ok) {
+            throw new Error(response.statusText);
+        }
+
+        const tasks = await response.json();
+
+        tasksArray = tasks.map(task => new Task(
+            task.title,
+            task.description,
+            task.date,
+            task.id
+        ));
+    } catch (err) {
+        console.log(err);
+    }
+}
+
+function showError() {
     errorMsg.classList.add("error--On");
 }
 
-function hideError(){
+function hideError() {
     errorMsg.classList.remove("error--On");
 }
 
-/**
- * input fields clearing
- **/
-function clearInput(){
+function clearInput() {
     titelInput.value = "";
     descriptionInput.value = "";
     dateInput.value = "";
     hideError();
 }
 
-/**
- * according to the event - looking for the element on which it was clicked, if btn "remove" -> delete
- * El and also drop from the Array
- * @param e - event
- **/
-function removeTask(e){
+function removeTask(e) {
     const btn = e.target.closest(".remove");
-    if(!btn) return;
+    if (!btn) return;
 
     const dropTask = btn.closest(".task--details");
-    if(!dropTask) return;
+    if (!dropTask) return;
 
     const id = dropTask.dataset.id;
     const ix = tasksArray.findIndex(task => task.id === id);
-    if(ix === -1) return;
+    if (ix === -1) return;
 
     tasksArray.splice(ix, 1);
-    saveTasks();
     showTasks();
 }
 
-function showTasks(){
+function showTasks() {
     dateToday = new Date();
     dateToday.setHours(0, 0, 0, 0);
 
     const allTasks = Array.from(tasksList.getElementsByClassName("task--details"));
-    allTasks.forEach(task => {
-        task.remove();
-    });
+    allTasks.forEach(task => task.remove());
 
     tasksArray = tasksArray.filter(task => {
-        let dif = task.date - dateToday;
+        const dif = task.date - dateToday;
         return dif >= 0;
     });
+
     tasksArray.forEach(task => {
         task.addTask();
-    })
-    saveTasks();
-}
-
-function saveTasks(){
-    localStorage.setItem("tasks", JSON.stringify(tasksArray));
-}
-
-function loadTasks(){
-    let obj = localStorage.getItem("tasks");
-    if(obj){
-        const tasks = JSON.parse(obj);
-        tasks.forEach(task => {
-            let newTask = new Task(task.title, task.description, new Date(task.date));
-            newTask.id = task.id;
-            tasksArray.push(newTask);
-        });
-    }
+    });
 }
