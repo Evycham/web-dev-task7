@@ -11,13 +11,50 @@ const port = 3000;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const tasks = [];
+app.use(express.static(path.join(__dirname, 'public')));
 
+const users = {
+    eva: {
+        password: "1234",
+        tasks: []
+    },
+    max: {
+        password: "abcd",
+        tasks: []
+    }
+};
+
+function basicAuth(req, res, next) {
+    const authHeader = req.headers['authorization'];
+
+    if (!authHeader) {
+        return res.status(401).json({ error: 'No auth header' });
+    }
+
+    const base64 = authHeader.split(' ')[1];
+    const decoded = Buffer.from(base64, 'base64').toString();
+
+    const [username, password] = decoded.split(':');
+
+    const user = users[username];
+
+    if (!user || user.password !== password) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    req.user = user;
+    req.username = username;
+
+    next();
+}
+
+
+app.use(basicAuth);
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/todos', (req, res) => {
-    return res.status(200).json(tasks);
+    return res.status(200).json(req.user.tasks);
 });
 
 app.post('/todos', (req, res) => {
@@ -42,7 +79,7 @@ app.post('/todos', (req, res) => {
         date: date
     };
 
-    tasks.push(task);
+    req.user.tasks.push(task);
 
     return res.status(201).json(task);
 });

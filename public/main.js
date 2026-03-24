@@ -95,6 +95,7 @@ async function createTask() {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                "Authorization": "Basic " + btoa("eva:1234")
             },
             body: JSON.stringify({ title, description, date }),
         });
@@ -123,7 +124,13 @@ async function createTask() {
 
 async function loadTasksFromServer() {
     try {
-        const response = await fetch("/todos");
+        const response = await fetch("/todos", {
+            method: "GET",
+            headers:{
+                "Content-Type": "application/json",
+                "Authorization": "Basic " + btoa("eva:1234")
+            }
+        });
 
         if (!response.ok) {
             throw new Error(response.statusText);
